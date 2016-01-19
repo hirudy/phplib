@@ -11,7 +11,7 @@
 class Logger{
 
     /**
-     * 日志数组
+     * 日志配置文件数组
      * @var array
      */
     private static $config_arr = array(
@@ -20,9 +20,12 @@ class Logger{
         ),
     );
 
-    private $logName; //日志名称
+    const LOG_
 
-    private $;
+
+    private $logName = 'default'; //日志名称
+    private $suffix = 'log'; //文件后缀
+    private $status;
 
 
     public static function loadConfig($arr){
