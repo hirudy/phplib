@@ -34,45 +34,90 @@ class Logger{
         self::LOG_FREQUENCY_MONTH
     );
 
-    protected static $g_config_arr = array(  // 日志配置文件数组,default是默认配置项
+    protected static $g_config_arr = array(  // 日志配置文件数组,default是默认配置项(不允许修改)
         'default' => array(
             'isLogging' => true,
             'basePath' => '',
             'suffix' => 'log',
+            'level' => array(self::LOG_LEVEL_ERROR,self::LOG_LEVEL_WARN,self::LOG_LEVEL_INFO),
             'mode' => self::LOG_MODE_NORMAL,
-            'frequency' => self::LOG_FREQUENCY_MINUTE,
+            'frequency' => self::LOG_FREQUENCY_NONE,
         ),
     );
+
+    protected static $printShowFileNameLength = 20; //打印输出模式，输出文件最大长度
 
     protected $isLoging;      //当前日志,是否记录
     protected $logName;       //当前日志,日志名称
     protected $basePath;      //当前日志,存储路径
     protected $suffix;        //当前日志,日志文件后缀
+    protected $level;         //当前日志,运行记录的日志等级
     protected $mode;          //当前日志,记录方式
     protected $frequency;     //当前日志,日志记录每隔一（分钟/小时/天/月）换一个文件记录
 
     private $logFilePath;     //完整的日志路径
+    private $timeLength;      //存储时间长度
 
-
+    /**
+     * 以二维数组的形式加载多个日志配置文件
+     * @param $arr array 二维数组
+     */
     public static function loadConfig($arr){
         if(!empty($arr) && is_array($arr)){
-            unset($arr['default']);
-            self::$g_config_arr = array_merge(self::$g_config_arr,$arr);
+            foreach($arr as $name =>$config){
+                self::loadOneConfig($config,$name);
+            }
         }
     }
 
+    /**
+     * 加载一个日志配置文件
+     * @param $arr
+     * @param string $name
+     * @return bool
+     */
+    public static function loadOneConfig($arr,$name=''){
+        if(!is_array($arr)){
+            $arr = array();
+        }
+        $name = isset($arr['logName'])?$arr['logName']:$name;
+        $name = str_replace(array('\\','/'),'_',$name);
+        if(!is_string($name) || empty($name) || $name == 'default'){
+            return false;
+        }
+        unset($arr['logName']);
+        self::$g_config_arr[$name] = $arr;
+
+        return true;
+    }
+
+
+    /**
+     * 根据日志名称，获取一个日志实例
+     * @param string $logName
+     * @return Logger
+     * @throws Exception
+     */
     public static function factory($logName='default'){
+        $logName = str_replace(array('\\','/'),'_',$logName);
         if(empty($logName) || !is_string($logName) || !isset(self::$g_config_arr[$logName])){
             throw new Exception("Make sure that the log configuration which name is '{$logName}' is loaded successfully");
         }
-        return new self($logName,self::$g_config_arr[$logName]);
+        return new self(self::$g_config_arr[$logName],$logName);
     }
 
-    public function __construct($logName='default',$config = array()){
+    /**
+     * Logger 构造函数，不能直接new Logger()
+     * @param string $logName
+     * @param array $config
+     * @throws Exception
+     */
+    protected function __construct($config = array(),$logName='default'){
         $this->isLoging = (isset($config['isLogging']))?$config['isLogging']:self::$g_config_arr['default']['isLogging'];
         $this->logName = (empty($logName) || !is_string($logName))?'default':$logName;
-        $this->basePath = isset($config['basePath'])?$config['basePath']:self::$g_basePath;
+        $this->basePath = (isset($config['basePath']) && !empty($config['basePath']))?$config['basePath']:self::$g_basePath;
         $this->suffix = isset($config['suffix'])?$config['suffix']:self::$g_config_arr['default']['suffix'];
+        $this->level = (isset($config['level']) && is_array($config['level']))?$config['level']:self::$g_config_arr['default']['level'];
         $this->mode = isset($config['mode'])?$config['mode']:self::$g_config_arr['default']['mode'];
         $this->frequency = isset($config['frequency'])?$config['frequency']:self::$g_config_arr['default']['frequency'];
 
@@ -82,42 +127,78 @@ class Logger{
                 throw new Exception("create directory fail:".$this->basePath);
             }
         }
-        $this->logFilePath = $this->basePath.DIRECTORY_SEPARATOR.$this->logName.$this->suffix;
+        $this->logFilePath = $this->basePath.DIRECTORY_SEPARATOR.$this->logName.'.'.$this->suffix;
+        switch($this->frequency){
+            case self::LOG_FREQUENCY_MINUTE: $this->timeLength = 12;break;
+            case self::LOG_FREQUENCY_HOUR: $this->timeLength = 10;break;
+            case self::LOG_FREQUENCY_DAY: $this->timeLength = 8;break;
+            case self::LOG_FREQUENCY_MONTH: $this->timeLength = 6;break;
+            default:
+                $this->timeLength = -1;
+        }
     }
 
+
+    /**
+     * 受保护的写日志方法
+     * @param $filePath
+     * @param $content
+     * @return bool|int
+     */
     protected function write($filePath,$content){
         $return_value = false;
-        if(self::$g_isLogging && $this->isLoging){
-            $content = $content."\n";
-            switch($this->mode){
-                case self::LOG_MODE_NORMAL:{
-                    $return_value = file_put_contents($filePath,$content,LOCK_EX);
-                    $return_value = (int)$return_value > 0 ?true:false;
-                }break;
-                case self::LOG_MODE_PRINT:{
-                    echo @substr($filePath,-10,10),':',$content;
-                    $return_value = true;
-                }break;
-                case self::LOG_MODE_BOTH:{
-                    echo @substr($filePath,-10,10),':',$content;
-                    file_put_contents($filePath,$content,LOCK_EX);
-                    $return_value = (int)$return_value > 0 ?true:false;
-                }break;
-            }
+        $content = $content."\n";
+        switch($this->mode){
+            case self::LOG_MODE_NORMAL:{
+                $return_value = file_put_contents($filePath,$content,LOCK_EX | FILE_APPEND);
+                $return_value = (int)$return_value > 0 ?true:false;
+            }break;
+            case self::LOG_MODE_PRINT:{
+                echo @substr($filePath,-self::$printShowFileNameLength),':',$content;
+                $return_value = true;
+            }break;
+            case self::LOG_MODE_BOTH:{
+                echo @substr($filePath,-self::$printShowFileNameLength),':',$content;
+                file_put_contents($filePath,$content,LOCK_EX | FILE_APPEND);
+                $return_value = (int)$return_value > 0 ?true:false;
+            }break;
         }
         return $return_value;
     }
 
 
+    /**
+     * 原始记录日志函数
+     * @param $content
+     * @param int $level
+     * @return bool|int
+     */
     public function log($content,$level = self::LOG_LEVEL_INFO){
-        if(!is_string($content)){
-            $content = serialize($content);
-        }
-        if($content === ''){
+        if(!self::$g_isLogging || !$this->isLoging || !in_array($level,$this->level)){
             return false;
         }
 
-        $logTime = time();
+        if(!is_string($content)){
+            $content = serialize($content);
+        }
+
+        $logTime = time();        //记录日志时间
+
+        // 检测是否需要对日志文件进行重命名
+        if($this->timeLength > 0){
+            $fileCreateTime = @filectime($this->logFilePath);
+            if($fileCreateTime){
+                $logTimeFormat = substr(@date('YmdHis',$logTime),0,$this->timeLength);
+                $createTimeFormat = substr(@date('YmdHis',$fileCreateTime),0,$this->timeLength);
+                echo $logTimeFormat,' ',$createTimeFormat,"\n";
+                if(strcmp($logTimeFormat,$createTimeFormat) !== 0){
+                    $newLogFilePath = $this->basePath.DIRECTORY_SEPARATOR.$this->logName.'_'.$createTimeFormat.'.'.$this->suffix;
+                    rename($this->logFilePath,$newLogFilePath);
+                }
+            }
+        }
+
+        //构造日志记录格式
         switch($level){
             case self::LOG_LEVEL_ERROR:{
                 $content = sprintf('[%s %s] %s',@date('Y-m-d H:i:s',$logTime),'error',$content);
@@ -129,40 +210,39 @@ class Logger{
                 $content = sprintf('[%s %s] %s',@date('Y-m-d H:i:s',$logTime),'info',$content);
         }
 
-        $rel = $this->write($this->logFilePath,$content);
+        //记录日志
+        return $this->write($this->logFilePath,$content);
+    }
 
-        // 检测是否需要对日志文件进行重命名
-        if($rel && in_array($this->frequency,self::$allowFrequencyList)){
-            $fileCreateTime = @filectime($this->logFilePath);
-            if($fileCreateTime){
-                $interval = $logTime - $fileCreateTime;
-                $timeLength = 0;
-                if($interval >= 60){
-                    switch($this->logFilePath){
-                        case self::LOG_FREQUENCY_MINUTE: $timeLength = 12;break;
-                        case self::LOG_FREQUENCY_HOUR: $timeLength = 10;break;
-                        case self::LOG_FREQUENCY_DAY: $timeLength = 8;break;
-                        case self::LOG_FREQUENCY_MONTH: $timeLength = 6;break;
-                    }
-                }
-                if($timeLength > 0){
-                    $logTimeFormat = substr(@date('YmdHis',$logTime),0,$timeLength);
-                    $createTimeFormat = substr(@date('YmdHis',$fileCreateTime),0,$timeLength);
-                    if(strcmp($logTimeFormat,$createTimeFormat) !== 0){
-                        $newLogFilePath = $this->basePath.DIRECTORY_SEPARATOR.$this->logName.'_'.$createTimeFormat.$this->suffix;
-                        rename($this->logFilePath,$newLogFilePath);
-                    }
-                }
+    /**
+     * 记录错误信息
+     * @param $content
+     * @return bool|int
+     */
+    public function error($content){
+        return $this->log($content,self::LOG_LEVEL_ERROR);
+    }
 
-            }
-        }
-        return true;
+    /**
+     * 记录警告信息
+     * @param $content
+     * @return bool|int
+     */
+    public function warn($content){
+        return $this->log($content,self::LOG_LEVEL_WARN);
     }
 }
 
 //测试
-if(true){
-    $log = Logger::factory();
-    $data =  $log->log('hello 哈哈中文');
+if(strtolower(PHP_SAPI) == 'cli' && basename(__FILE__) == basename($argv[0])){
+    $config = array(  // 日志配置文件数组,default是默认配置项
+        'test1/a' => array(
+            'logName' => 'bb'
+        ),
+    );
+
+    Logger::loadConfig($config);
+    $log = Logger::factory('bb');
+    $data =  $log->error('hello 哈哈1中文');
     echo $data,"\n";
 }
