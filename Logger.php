@@ -179,7 +179,11 @@ class Logger{
         }
 
         if(!is_string($content)){
-            $content = serialize($content);
+            if(is_array($content)){
+                $content = json_encode($content,JSON_UNESCAPED_UNICODE);
+            }else{
+                $content = serialize($content);
+            }
         }
 
         $logTime = time();        //记录日志时间

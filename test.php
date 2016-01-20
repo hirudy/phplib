@@ -10,4 +10,5 @@
 include 'Logger.php';
 
 $log = Logger::factory();
-$log->warn('aaadsada');
+$log->log(array('abaa',"'aaa'",'中午'));
+$log->log($log);
