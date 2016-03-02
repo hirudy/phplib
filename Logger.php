@@ -45,7 +45,7 @@ class Logger{
         ),
     );
 
-    protected static $printShowFileNameLength = 20; //打印输出模式，输出文件最大长度
+    protected static $logPool = array();    // 日志对象池子
 
     protected $isLoging;      //当前日志,是否记录
     protected $logName;       //当前日志,日志名称
@@ -94,16 +94,24 @@ class Logger{
 
     /**
      * 根据日志名称，获取一个日志实例
-     * @param string $logName
+     * @param string $logName 配置名称
+     * @param bool $isNew 是否生成一个新的日志对象
      * @return Logger
      * @throws Exception
      */
-    public static function factory($logName='default'){
+    public static function factory($logName='default',$isNew=false){
         $logName = str_replace(array('\\','/'),'_',$logName);
-        if(empty($logName) || !is_string($logName) || !isset(self::$g_config_arr[$logName])){
-            throw new Exception("Make sure that the log configuration which name is '{$logName}' is loaded successfully");
+        if(!isset(self::$logPool[$logName]) || $isNew == true){
+            if(isset(self::$logPool[$logName])){
+                unset(self::$logPool[$logName]);
+            }
+
+            if(empty($logName) || !is_string($logName) || !isset(self::$g_config_arr[$logName])){
+                throw new Exception("Make sure that the log configuration which name is '{$logName}' is loaded successfully");
+            }
+            self::$logPool[$logName] = new self(self::$g_config_arr[$logName],$logName);
         }
-        return new self(self::$g_config_arr[$logName],$logName);
+        return self::$logPool[$logName];
     }
 
     /**
@@ -154,11 +162,11 @@ class Logger{
                 $return_value = (int)$return_value > 0 ?true:false;
             }break;
             case self::LOG_MODE_PRINT:{
-                echo @substr($filePath,-self::$printShowFileNameLength),':',$content;
+                echo $this->logName,':',$content;
                 $return_value = true;
             }break;
             case self::LOG_MODE_BOTH:{
-                echo @substr($filePath,-self::$printShowFileNameLength),':',$content;
+                echo $this->logName,':',$content;
                 file_put_contents($filePath,$content,LOCK_EX | FILE_APPEND);
                 $return_value = (int)$return_value > 0 ?true:false;
             }break;

@@ -38,6 +38,27 @@ class MysqlOption{
         return $this->dbConnection->character_set_name();
     }
 
+
+    /**
+     * 获取select结果集中的所有结果
+     * @param $option
+     * @return array
+     */
+    protected function fetch_all($option){
+        $result = array();
+        if(method_exists($option,'fetch_all')){
+            $result =  $option->fetch_all(MYSQLI_ASSOC);
+        }else{
+            while($row = $option->fetch_assoc()){
+                $result[] = $row;
+            }
+        }
+
+        return $result;
+    }
+
+
+
     /**
      * 切换默认数据库
      * @param $dbName String 要切换的数据库名称
@@ -81,7 +102,10 @@ class MysqlOption{
                     return $this->dbConnection->insert_id;
                 }
             }
-            $returnValue = $result->fetch_all(MYSQLI_ASSOC);
+            $returnValue = $this->fetch_all($result);
+            if($result->fetch_assoc()){
+
+            }
             $result->close();
         }else{
             $statement = $this->dbConnection->prepare($sql);
@@ -127,7 +151,7 @@ class MysqlOption{
                     if ($rel === false){
                         throw new Exception("{$this->connectionName} select error:({$this->dbConnection->errno}){$this->dbConnection->error}");
                     }
-                    $returnValue = $rel->fetch_all(MYSQLI_ASSOC);
+                    $returnValue = $this->fetch_all($rel);
                 }break;
                 case 'insert':{
                     $returnValue = $this->dbConnection->insert_id;
