@@ -1,7 +1,6 @@
-# phplib
 实际使用总结出来的通用phpLib
 
-## TLogger
+# 1.TLogger
 日志记录工具
 
 ```php
@@ -19,7 +18,7 @@ interface ILoggerHandle{
 ```
 对外提供的函数,总共有5种日志级别,等级依次降低
 
-#### 配置样例
+## 配置样例
 ```php
     array(
         'name' => 'default',                           // 日志名称,全局唯一
@@ -31,7 +30,7 @@ interface ILoggerHandle{
     )
 ```
 
-#### 使用举例
+## 使用举例
 ```php
     $config = array(  // 日志配置文件数组,default是默认配置项
         'name' => 'test',
@@ -49,13 +48,66 @@ interface ILoggerHandle{
     $logger->fatal($logger);
 ```
 
+# 2.THttp
+封装的http请求类
 
+## 对外提供方法
+```php
+class THttp{
+    /**
+     * 通用请求方法
+     * @param string $url 请求url地址
+     * @param array  $postData 请求post参数数组
+     * @param array  $header  请求附带请求头部数组
+     * @param int    $timeOut 超时时间
+     * @param string $proxy 代理设置
+     * @return array
+     */
+    public static function request($url,$postData=array(),$header=array(),$timeOut=self::DEFAULT_TIMEOUT, $proxy='');
 
-## Image
+    // 简单返回请求方法,相对于THttp::request(),简化了返回结果
+    public static function simpleResponseRequest($url,$postData=array(), $header=array(), $timeOut=self::DEFAULT_TIMEOUT, $proxy='');
+
+    // 多个http请求并行执行
+    public static function multiRequest(Array $requestList);
+}    
+```
+## 调用实例
+```php
+    // 串行请求
+    $start_time = microtime(true);
+    $response1 = THttp::request('https://www.baidu.com/');
+    $response2 = THttp::request('http://www.jd.com');
+    $response3 = THttp::request('http://www.jianshu.com/');
+    $response4 = THttp::request('http://www.zhihu.com/');
+    $response5 = THttp::request('http://www.php.net/');
+    $response6 = THttp::request('https://github.com/hirudy');
+    $response7 = THttp::request('http://www.toutiao.com/');
+    $response8 = THttp::request('http://www.mi.com/');
+    //    $response9 = THttp::request('https://www.google.com');
+    echo "serial request take time : ", microtime(true)-$start_time,"\n";
+
+    // 并行请求
+    $start_time = microtime(true);
+    $responseList = THttp::multiRequest(array(
+        array('url'=>'https://www.baidu.com/'),
+        array('url'=>'http://www.jd.com'),
+        array('url'=>'http://www.jianshu.com/'),
+        array('url'=>'http://www.zhihu.com/'),
+        array('url'=>'http://www.php.net/'),
+        array('url'=>'https://github.com/hirudy'),
+        array('url'=>'http://www.toutiao.com/'),
+        array('url'=>'http://www.mi.com/'),
+//        array('url'=>'https://www.google.com')
+    ));
+    echo "parallel requests take time : ", microtime(true)-$start_time,"\n";
+```
+
+# 3.Image
 一些图片相关操作封装
 
-## MysqlDB
+# 4.MysqlDB
 mysql操作类，需要mysqli扩展
 
-## phpAb
+# 5.phpAb
 php实现的压测工具
