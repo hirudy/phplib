@@ -7,8 +7,8 @@
  *
  */
 
-include 'Logger.php';
+include 'TLogger.php';
 
-$log = Logger::factory();
+$log = TLogger::getLogger();
 $log->log(array('abaa',"'aaa'",'中午'));
 $log->log($log);
